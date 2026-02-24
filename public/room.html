@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Видеозвонок</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="room-page">
+  <!-- Модалка ввода имени -->
+  <div id="join-modal" class="modal">
+    <div class="modal-content">
+      <h2><i class="fas fa-video"></i> Присоединиться к звонку</h2>
+
+      <div class="preview-container">
+        <video id="preview-video" autoplay muted playsinline></video>
+        <div id="preview-placeholder" class="preview-placeholder">
+          <i class="fas fa-video-slash"></i>
+          <p>Камера выключена</p>
+        </div>
+      </div>
+
+      <div class="preview-controls">
+        <button id="preview-toggle-video" class="btn-icon active" title="Камера">
+          <i class="fas fa-video"></i>
+        </button>
+        <button id="preview-toggle-audio" class="btn-icon active" title="Микрофон">
+          <i class="fas fa-microphone"></i>
+        </button>
+      </div>
+
+      <input
+        type="text"
+        id="join-username"
+        placeholder="Ваше имя"
+        maxlength="30"
+        autocomplete="off"
+      >
+      <button id="join-btn" class="btn btn-primary">
+        <i class="fas fa-sign-in-alt"></i>
+        Присоединиться
+      </button>
+    </div>
+  </div>
+
+  <!-- Основной интерфейс -->
+  <div id="room-container" class="room-container hidden">
+    <!-- Верхняя панель -->
+    <div class="room-header">
+      <div class="room-info">
+        <i class="fas fa-video"></i>
+        <span>VideoCall</span>
+        <span class="room-id" id="room-id-display"></span>
+        <button id="copy-link-btn" class="btn-small" title="Копировать ссылку">
+          <i class="fas fa-copy"></i>
+        </button>
+      </div>
+      <div class="room-stats">
+        <span id="participants-count">
+          <i class="fas fa-users"></i>
+          <span>1</span>
+        </span>
+        <span id="call-timer">00:00</span>
+      </div>
+    </div>
+
+    <!-- Видео сетка -->
+    <div class="video-grid" id="video-grid">
+      <div class="video-wrapper local" id="local-video-wrapper">
+        <video id="local-video" autoplay muted playsinline></video>
+        <div class="video-overlay">
+          <span class="video-username">Вы</span>
+          <div class="video-indicators">
+            <i class="fas fa-microphone-slash audio-off hidden" id="local-audio-indicator"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Нижняя панель управления -->
+    <div class="controls-bar">
+      <div class="controls-group">
+        <button id="toggle-audio" class="control-btn active" title="Микрофон">
+          <i class="fas fa-microphone"></i>
+          <span>Микрофон</span>
+        </button>
+
+        <button id="toggle-video" class="control-btn active" title="Камера">
+          <i class="fas fa-video"></i>
+          <span>Камера</span>
+        </button>
+
+        <button id="toggle-screen" class="control-btn" title="Демонстрация экрана">
+          <i class="fas fa-desktop"></i>
+          <span>Экран</span>
+        </button>
+
+        <button id="leave-btn" class="control-btn leave" title="Покинуть звонок">
+          <i class="fas fa-phone-slash"></i>
+          <span>Выйти</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Уведомления -->
+  <div id="notifications" class="notifications"></div>
+
+  <!-- Копирование -->
+  <div id="copy-toast" class="copy-toast hidden">
+    <i class="fas fa-check"></i> Ссылка скопирована
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/room.js"></script>
+</body>
+</html>

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Видеозвонки</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="home-page">
+  <div class="home-container">
+    <div class="home-card">
+      <div class="logo">
+        <i class="fas fa-video"></i>
+        <h1>VideoCall</h1>
+      </div>
+      <p class="subtitle">Бесплатные видеозвонки прямо в браузере</p>
+
+      <div class="home-actions">
+        <div class="input-group">
+          <input
+            type="text"
+            id="username"
+            placeholder="Ваше имя"
+            maxlength="30"
+            autocomplete="off"
+          >
+        </div>
+
+        <button id="create-room-btn" class="btn btn-primary">
+          <i class="fas fa-plus"></i>
+          Создать комнату
+        </button>
+
+        <div class="divider">
+          <span>или</span>
+        </div>
+
+        <div class="join-group">
+          <input
+            type="text"
+            id="room-id-input"
+            placeholder="Код комнаты"
+            maxlength="8"
+            autocomplete="off"
+          >
+          <button id="join-room-btn" class="btn btn-secondary">
+            <i class="fas fa-sign-in-alt"></i>
+            Войти
+          </button>
+        </div>
+      </div>
+
+      <div class="features">
+        <div class="feature">
+          <i class="fas fa-lock"></i>
+          <span>Шифрование P2P</span>
+        </div>
+        <div class="feature">
+          <i class="fas fa-users"></i>
+          <span>До 10 участников</span>
+        </div>
+        <div class="feature">
+          <i class="fas fa-desktop"></i>
+          <span>Демонстрация экрана</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/main.js"></script>
+</body>
+</html>
