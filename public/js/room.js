@@ -225,6 +225,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function initDevices() {
     try {
+      // try to quickly open for permissions and to populate labels
       const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
       tempStream.getTracks().forEach(t => t.stop());
 
@@ -232,13 +233,21 @@ document.addEventListener('DOMContentLoaded', () => {
       const cameras = devices.filter(d => d.kind === 'videoinput');
       const mics = devices.filter(d => d.kind === 'audioinput');
 
-      cameraSelect.innerHTML = cameras.map((cam, idx) =>
-        `<option value="${cam.deviceId}" ${idx === 0 ? 'selected' : ''}>${cam.label || 'Камера ' + (idx + 1)}</option>`
-      ).join('');
+      if (cameras.length) {
+        cameraSelect.innerHTML = cameras.map((cam, idx) =>
+          `<option value="${cam.deviceId}" ${idx === 0 ? 'selected' : ''}>${cam.label || 'Камера ' + (idx + 1)}</option>`
+        ).join('');
+      } else {
+        cameraSelect.innerHTML = '<option disabled>Нет камер</option>';
+      }
 
-      micSelect.innerHTML = mics.map((mic, idx) =>
-        `<option value="${mic.deviceId}" ${idx === 0 ? 'selected' : ''}>${mic.label || 'Микрофон ' + (idx + 1)}</option>`
-      ).join('');
+      if (mics.length) {
+        micSelect.innerHTML = mics.map((mic, idx) =>
+          `<option value="${mic.deviceId}" ${idx === 0 ? 'selected' : ''}>${mic.label || 'Микрофон ' + (idx + 1)}</option>`
+        ).join('');
+      } else {
+        micSelect.innerHTML = '<option disabled>Нет микрофонов</option>';
+      }
 
       currentCameraId = cameraSelect.value;
       currentMicId = micSelect.value;
@@ -257,6 +266,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     } catch (err) {
       console.error('Ошибка устройств:', err);
+      // provide minimal options so dropdowns disappear from loading state
+      cameraSelect.innerHTML = '<option disabled>Устройства недоступны</option>';
+      micSelect.innerHTML = '<option disabled>Устройства недоступны</option>';
       await initPreview();
     }
   }
