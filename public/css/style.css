@@ -351,6 +351,53 @@ body {
   transform: scale(1.1);
 }
 
+/* ===== DEVICE SELECTORS ===== */
+.device-selectors {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.select-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  transition: var(--transition);
+}
+
+.select-group:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.select-group i {
+  color: var(--accent);
+  font-size: 14px;
+  width: 20px;
+  text-align: center;
+}
+
+.select-group select {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+  cursor: pointer;
+}
+
+.select-group select option {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
 /* ===== ROOM PAGE ===== */
 .room-page {
   height: 100vh;
@@ -422,12 +469,10 @@ body {
   gap: 8px;
   padding: 8px;
   overflow: hidden;
-  /* Динамическая сетка */
   grid-template-columns: 1fr;
   grid-template-rows: 1fr;
 }
 
-/* Адаптивная сетка в зависимости от количества видео */
 .video-grid.grid-1 {
   grid-template-columns: 1fr;
   grid-template-rows: 1fr;
@@ -466,7 +511,7 @@ body {
   grid-template-rows: 1fr 1fr 1fr;
 }
 
-/* Видео-обёртка */
+/* ===== VIDEO MIRRORING FIX ===== */
 .video-wrapper {
   position: relative;
   background: var(--bg-secondary);
@@ -487,17 +532,45 @@ body {
   box-shadow: 0 0 20px rgba(76, 175, 80, 0.3);
 }
 
+/* Базовое состояние: без зеркала */
 .video-wrapper video {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transform: none;
 }
 
-/* local video no longer mirrored; keep natural orientation */
-.video-wrapper.local video {
-  /* transform: scaleX(-1); */
+/* Локальная КАМЕРА — зеркалим (как в зеркале) */
+.video-wrapper.local-camera video {
+  transform: scaleX(-1);
 }
 
+/* Локальная ДЕМОНСТРАЦИЯ — не зеркалим */
+.video-wrapper.screen-share-active video {
+  transform: none !important;
+}
+
+/* Удалённые видео — никогда не зеркалим */
+.video-wrapper:not(.local-camera):not(#local-video-wrapper) video {
+  transform: none;
+}
+
+/* Полноэкранный режим — никогда не зеркалим (для всех) */
+.video-wrapper.fullscreen video {
+  transform: none !important;
+  object-fit: contain;
+}
+
+/* Вертикальное видео */
+.video-wrapper.portrait {
+  background: #000;
+}
+
+.video-wrapper.portrait video {
+  object-fit: contain !important;
+}
+
+/* Видео-обёртка элементы */
 .video-overlay {
   position: absolute;
   bottom: 0;
@@ -558,6 +631,86 @@ body {
 .video-off-placeholder span {
   color: var(--text-secondary);
   font-size: 14px;
+}
+
+/* ===== FULLSCREEN MODE ===== */
+.video-wrapper.fullscreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 1000;
+  border-radius: 0;
+  border: none;
+  cursor: pointer;
+  background: #000;
+}
+
+.video-wrapper.fullscreen::after {
+  content: '\f00d';
+  font-family: 'Font Awesome 6 Free';
+  font-weight: 900;
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 48px;
+  height: 48px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 20px;
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.3s ease;
+  z-index: 10;
+  backdrop-filter: blur(10px);
+  pointer-events: none;
+}
+
+.video-wrapper.fullscreen:hover::after {
+  opacity: 1;
+}
+
+.video-wrapper.fullscreen .video-overlay {
+  opacity: 0;
+  transition: opacity 0.3s;
+  position: absolute;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  right: auto;
+  top: auto;
+  background: rgba(0, 0, 0, 0.8);
+  padding: 12px 24px;
+  border-radius: 30px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  text-align: center;
+  min-width: 120px;
+}
+
+.video-wrapper.fullscreen:hover .video-overlay {
+  opacity: 1;
+}
+
+.video-wrapper.fullscreen .video-indicators {
+  position: absolute;
+  top: -40px;
+  right: 0;
+  left: 0;
+  justify-content: center;
+}
+
+/* Отключаем grid-ограничения в полноэкранном */
+.video-wrapper.fullscreen {
+  grid-column: auto !important;
+  grid-row: auto !important;
+  min-height: auto !important;
 }
 
 /* ===== CONTROLS BAR ===== */
@@ -706,113 +859,6 @@ body {
   }
 }
 
-/* ===== FULLSCREEN & PORTRAIT VIDEO ===== */
-
-/* Вертикальное видео - показываем полностью без обрезки */
-.video-wrapper.portrait {
-  background: #000;
-}
-
-.video-wrapper.portrait video {
-  object-fit: contain;
-}
-
-/* Полноэкранный режим при клике (как в Discord) */
-.video-wrapper.fullscreen {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  z-index: 1000;
-  border-radius: 0;
-  border: none;
-  cursor: pointer;
-  background: #000;
-}
-
-.video-wrapper.fullscreen video {
-  object-fit: contain;
-  width: 100%;
-  height: 100%;
-  position: absolute;
-  top: 0;
-  left: 0;
-}
-
-/* Для локального видео сохраняем зеркало в полноэкранном */
-.video-wrapper.local.fullscreen video {
-  transform: scaleX(-1);
-}
-
-/* Кнопка закрытия (крестик) */
-.video-wrapper.fullscreen::after {
-  content: '\f00d';
-  font-family: 'Font Awesome 6 Free';
-  font-weight: 900;
-  position: absolute;
-  top: 20px;
-  right: 20px;
-  width: 48px;
-  height: 48px;
-  background: rgba(0, 0, 0, 0.7);
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-size: 20px;
-  cursor: pointer;
-  opacity: 0;
-  transition: all 0.3s ease;
-  z-index: 10;
-  backdrop-filter: blur(10px);
-  pointer-events: none;
-}
-
-.video-wrapper.fullscreen:hover::after {
-  opacity: 1;
-}
-
-/* Оверлей в полноэкранном режиме */
-.video-wrapper.fullscreen .video-overlay {
-  opacity: 0;
-  transition: opacity 0.3s;
-  position: absolute;
-  bottom: 40px;
-  left: 50%;
-  transform: translateX(-50%);
-  right: auto;
-  top: auto;
-  background: rgba(0, 0, 0, 0.8);
-  padding: 12px 24px;
-  border-radius: 30px;
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  text-align: center;
-  min-width: 120px;
-}
-
-.video-wrapper.fullscreen:hover .video-overlay {
-  opacity: 1;
-}
-
-.video-wrapper.fullscreen .video-indicators {
-  position: absolute;
-  top: -40px;
-  right: 0;
-  left: 0;
-  justify-content: center;
-}
-
-/* Отключаем grid-ограничения в полноэкранном */
-.video-wrapper.fullscreen {
-  grid-column: auto !important;
-  grid-row: auto !important;
-  min-height: auto !important;
-}
-
 /* ===== RESPONSIVE ===== */
 @media (max-width: 768px) {
   .home-card {
@@ -844,66 +890,4 @@ body {
     gap: 12px;
     font-size: 13px;
   }
-}
-/* ===== DEVICE SELECTORS ===== */
-.device-selectors {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-bottom: 16px;
-}
-
-.select-group {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 10px 14px;
-  transition: var(--transition);
-}
-
-.select-group:focus-within {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-glow);
-}
-
-.select-group i {
-  color: var(--accent);
-  font-size: 14px;
-  width: 20px;
-  text-align: center;
-}
-
-.select-group select {
-  flex: 1;
-  background: transparent;
-  border: none;
-  color: var(--text-primary);
-  font-family: inherit;
-  font-size: 14px;
-  outline: none;
-  cursor: pointer;
-}
-
-.select-group select option {
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-}
-
-/* ===== VIDEO MIRROR FIX ===== */
-/* Локальное видео зеркалим только для камеры, не для демонстрации */
-.video-wrapper.local video {
-  transform: scaleX(-1);
-}
-
-/* Удаленные видео не зеркалим */
-.video-wrapper:not(.local) video {
-  transform: none;
-}
-
-/* В полноэкранном режиме демонстрация не зеркалится */
-.video-wrapper.fullscreen video {
-  transform: none !important;
 }
