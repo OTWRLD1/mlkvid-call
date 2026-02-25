@@ -396,6 +396,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  /* ensure overlay text doesn't wrap or overflow */
+  white-space: nowrap;
 }
 
 .admin-video-name {
@@ -403,11 +405,17 @@
   font-weight: 600;
   color: white;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .admin-video-id {
   font-family: 'Courier New', monospace;
   font-size: 11px;
+  max-width: 35%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: rgba(255, 255, 255, 0.5);
 }
 

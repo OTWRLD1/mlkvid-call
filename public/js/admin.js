@@ -135,7 +135,13 @@ function createAdminPeer(userId, username) {
   };
 
   connection.ontrack = e => {
-    video.srcObject = e.streams[0];
+    console.log('admin received track from', userId, e.streams);
+    if (e.streams && e.streams[0]) {
+      video.srcObject = e.streams[0];
+    } else {
+      // no stream - keep black placeholder or show text
+      console.warn('no stream received for', userId);
+    }
   };
 
   connection.oniceconnectionstatechange = () => {
