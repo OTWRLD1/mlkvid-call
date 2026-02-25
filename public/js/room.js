@@ -223,54 +223,57 @@ document.addEventListener('DOMContentLoaded', () => {
 
   initDevices();
 
-  async function initDevices() {
-    try {
-      // try to quickly open for permissions and to populate labels
-      const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-      tempStream.getTracks().forEach(t => t.stop());
+  function populateDeviceSelects(devices) {
+    const cameras = devices.filter(d => d.kind === 'videoinput');
+    const mics    = devices.filter(d => d.kind === 'audioinput');
 
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const cameras = devices.filter(d => d.kind === 'videoinput');
-      const mics = devices.filter(d => d.kind === 'audioinput');
-
-      if (cameras.length) {
-        cameraSelect.innerHTML = cameras.map((cam, idx) =>
-          `<option value="${cam.deviceId}" ${idx === 0 ? 'selected' : ''}>${cam.label || 'Камера ' + (idx + 1)}</option>`
-        ).join('');
-      } else {
-        cameraSelect.innerHTML = '<option disabled>Нет камер</option>';
-      }
-
-      if (mics.length) {
-        micSelect.innerHTML = mics.map((mic, idx) =>
-          `<option value="${mic.deviceId}" ${idx === 0 ? 'selected' : ''}>${mic.label || 'Микрофон ' + (idx + 1)}</option>`
-        ).join('');
-      } else {
-        micSelect.innerHTML = '<option disabled>Нет микрофонов</option>';
-      }
-
-      currentCameraId = cameraSelect.value;
-      currentMicId = micSelect.value;
-
-      await initPreview();
-
-      cameraSelect.addEventListener('change', async () => {
-        currentCameraId = cameraSelect.value;
-        await restartPreview();
-      });
-
-      micSelect.addEventListener('change', async () => {
-        currentMicId = micSelect.value;
-        await restartPreview();
-      });
-
-    } catch (err) {
-      console.error('Ошибка устройств:', err);
-      // provide minimal options so dropdowns disappear from loading state
-      cameraSelect.innerHTML = '<option disabled>Устройства недоступны</option>';
-      micSelect.innerHTML = '<option disabled>Устройства недоступны</option>';
-      await initPreview();
+    if (cameras.length) {
+      cameraSelect.innerHTML = cameras.map((cam, idx) =>
+        `<option value="${cam.deviceId}" ${cam.deviceId === currentCameraId || idx === 0 ? 'selected' : ''}>${cam.label || 'Камера ' + (idx + 1)}</option>`
+      ).join('');
+    } else {
+      cameraSelect.innerHTML = '<option value="">Нет камер</option>';
     }
+
+    if (mics.length) {
+      micSelect.innerHTML = mics.map((mic, idx) =>
+        `<option value="${mic.deviceId}" ${mic.deviceId === currentMicId || idx === 0 ? 'selected' : ''}>${mic.label || 'Микрофон ' + (idx + 1)}</option>`
+      ).join('');
+    } else {
+      micSelect.innerHTML = '<option value="">Нет микрофонов</option>';
+    }
+
+    currentCameraId = cameraSelect.value;
+    currentMicId    = micSelect.value;
+  }
+
+  async function initDevices() {
+    // Step 1: populate selects immediately (no permission needed, labels may be empty)
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      populateDeviceSelects(devices);
+    } catch (e) {
+      cameraSelect.innerHTML = '<option value="">Нет камер</option>';
+      micSelect.innerHTML    = '<option value="">Нет микрофонов</option>';
+    }
+
+    cameraSelect.addEventListener('change', async () => {
+      currentCameraId = cameraSelect.value;
+      await restartPreview();
+    });
+    micSelect.addEventListener('change', async () => {
+      currentMicId = micSelect.value;
+      await restartPreview();
+    });
+
+    // Step 2: start preview (will request permissions on its own)
+    await initPreview();
+
+    // Step 3: after preview, refresh device list to get proper labels
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      populateDeviceSelects(devices);
+    } catch (e) { /* ignore */ }
   }
 
   async function initPreview() {
