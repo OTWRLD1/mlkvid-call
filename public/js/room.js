@@ -143,7 +143,8 @@ document.addEventListener('DOMContentLoaded', () => {
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },
-      { urls: 'stun:stun2.l.google.com:19302' }
+      { urls: 'turn:144.31.142.239:3478', username: 'vcuser', credential: 'vcpass123' },
+      { urls: 'turn:144.31.142.239:3478?transport=tcp', username: 'vcuser', credential: 'vcpass123' }
     ]
   };
 
