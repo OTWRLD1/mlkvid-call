@@ -316,9 +316,32 @@ document.addEventListener('DOMContentLoaded', () => {
   async function restartPreview() {
     if (localStream) localStream.getTracks().forEach(t => t.stop());
     await initPreview();
+    // if we are already in a call, update peers with new tracks
+    applyStreamToPeers();
   }
 
   // ===== Превью кнопки =====
+
+  function applyStreamToPeers() {
+    // update outgoing tracks when the local/processed stream changed
+    const sendStream = getStreamToSend();
+    peers.forEach(peer => {
+      if (peer && peer.connection) {
+        const vidTrack = sendStream.getVideoTracks()[0];
+        const audTrack = sendStream.getAudioTracks()[0];
+        peer.connection.getSenders().forEach(sender => {
+          if (sender.track) {
+            if (sender.track.kind === 'video' && vidTrack) {
+              sender.replaceTrack(vidTrack);
+            }
+            if (sender.track.kind === 'audio' && audTrack) {
+              sender.replaceTrack(audTrack);
+            }
+          }
+        });
+      }
+    });
+  }
   previewToggleVideo.addEventListener('click', () => {
     if (!localStream) return;
     const vt = localStream.getVideoTracks()[0];
@@ -346,13 +369,18 @@ document.addEventListener('DOMContentLoaded', () => {
   previewToggleNoise.addEventListener('click', async () => {
     noiseEnabled = !noiseEnabled;
     previewToggleNoise.classList.toggle('active', noiseEnabled);
-    // reinitialize preview to apply change
     await restartPreview();
   });
+
 
   // ===== Присоединение =====
   joinBtn.addEventListener('click', joinRoom);
   joinUsernameInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') joinRoom(); });
+  // prevent username prompt from reappearing
+  joinModal.addEventListener('transitionend', () => {
+    if (roomContainer.classList.contains('hidden')) return;
+    joinModal.style.display = 'none';
+  });
 
   function joinRoom() {
     username = joinUsernameInput.value.trim();
