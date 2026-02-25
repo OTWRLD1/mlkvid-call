@@ -493,8 +493,9 @@ body {
   object-fit: cover;
 }
 
+/* local video no longer mirrored; keep natural orientation */
 .video-wrapper.local video {
-  transform: scaleX(-1);
+  /* transform: scaleX(-1); */
 }
 
 .video-overlay {
