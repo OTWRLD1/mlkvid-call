@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Админ панель</title>
+  <link rel="stylesheet" href="/css/admin.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="admin-page">
+  <!-- простая заглушка, логика будет реализована скриптом -->
+  <div class="admin-login" id="adminLogin">
+    <div class="admin-login-card">
+      <div class="admin-logo">
+        <i class="fas fa-user-shield"></i>
+        <h1>Админ</h1>
+      </div>
+      <p class="admin-subtitle">Введите пароль администратора</p>
+      <div class="admin-form">
+        <input type="password" id="admin-password" placeholder="Пароль">
+        <button id="admin-login-btn" class="btn btn-primary">Войти</button>
+      </div>
+      <p class="login-error hidden" id="adminLoginError">Неверный пароль</p>
+    </div>
+  </div>
+
+  <div class="admin-panel hidden" id="adminPanel">
+    <!-- панель будет заполняться скриптом -->
+    <div class="admin-header">
+      <div class="admin-header-left">
+        <i class="fas fa-user-shield"></i>
+        <h2>Панель администратора</h2>
+      </div>
+      <div class="admin-header-right">
+        <span class="admin-stat" id="roomCount">Комнат: 0</span>
+      </div>
+    </div>
+    <div class="admin-content">
+      <div class="admin-sidebar">
+        <h3><i class="fas fa-list"></i>Комнаты</h3>
+        <div class="rooms-list" id="roomsList"></div>
+      </div>
+      <div class="admin-main" id="adminMain">
+        <div class="no-room-selected" id="noRoomMsg">
+          <i class="fas fa-eye-slash"></i>
+          <h3>Комната не выбрана</h3>
+        </div>
+        <div class="watching-room hidden" id="watchingRoom">
+          <div class="watching-header">
+            <h3><i class="fas fa-eye"></i> <span id="watchRoomId"></span></h3>
+            <span class="watching-count" id="watchCount">0</span>
+          </div>
+          <div class="admin-video-grid" id="adminVideoGrid"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/admin.js"></script>
+</body>
+</html>
