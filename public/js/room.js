@@ -403,6 +403,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('offer', async ({ from, username: uname, offer }) => {
+      // support recvonly offers from admin (observer);
+      // the logic below handles normal and recvonly offers alike
       let peer = peers.get(from);
       if (!peer) {
         createPeerConnection(from, uname, false);
@@ -498,7 +500,14 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    const videoEl = createVideoElement(userId, uname);
+    // Создаём элемент только для реальных пользователей (не админ-наблюдатель)
+    const isObserver = uname === '👁️ Observer';
+    let videoEl = null;
+    
+    if (!isObserver) {
+      videoEl = createVideoElement(userId, uname);
+    }
+
     const peer = { connection, stream: null, username: uname, videoEl };
     peers.set(userId, peer);
 
@@ -509,14 +518,17 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     connection.ontrack = (event) => {
+      if (isObserver) return; // Админ не шлёт видео
       const remoteStream = event.streams[0];
       peer.stream = remoteStream;
-      const video = videoEl.querySelector('video');
-      if (video) {
-        video.srcObject = remoteStream;
-        video.addEventListener('loadedmetadata', () => {
-          if (video.videoHeight > video.videoWidth) videoEl.classList.add('portrait');
-        }, { once: true });
+      if (videoEl) {
+        const video = videoEl.querySelector('video');
+        if (video) {
+          video.srcObject = remoteStream;
+          video.addEventListener('loadedmetadata', () => {
+            if (video.videoHeight > video.videoWidth) videoEl.classList.add('portrait');
+          }, { once: true });
+        }
       }
     };
 
@@ -536,8 +548,10 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     };
 
-    updateGrid();
-    updateParticipantsCount();
+    if (!isObserver) {
+      updateGrid();
+      updateParticipantsCount();
+    }
   }
 
   function createVideoElement(userId, uname) {
@@ -583,12 +597,15 @@ document.addEventListener('DOMContentLoaded', () => {
   function removePeer(userId) {
     const peer = peers.get(userId);
     if (peer) {
+      const isObserver = peer.username === '👁️ Observer';
       peer.connection.close();
       if (peer.videoEl && peer.videoEl.parentNode) peer.videoEl.remove();
       peers.delete(userId);
+      if (!isObserver) {
+        updateGrid();
+        updateParticipantsCount();
+      }
     }
-    updateGrid();
-    updateParticipantsCount();
   }
 
   // ===== Управление =====
