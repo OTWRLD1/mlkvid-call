@@ -98,6 +98,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const previewPlaceholder = document.getElementById('preview-placeholder');
   const previewToggleVideo = document.getElementById('preview-toggle-video');
   const previewToggleAudio = document.getElementById('preview-toggle-audio');
+  const previewToggleNoise = document.getElementById('preview-toggle-noise');
   const cameraSelect = document.getElementById('camera-select');
   const micSelect = document.getElementById('mic-select');
 
@@ -122,6 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let localStream = null;
   let processedStream = null;
   let screenStream = null;
+  let noiseEnabled = true; // toggle for client-side noise suppression
   let socket = null;
   let audioEnabled = true;
   let videoEnabled = true;
@@ -149,6 +151,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // В простейшем случае сконвертируйте Python-реализцию в WASM/JS и
   // поместите его сюда как переменную `deepFilterNetWorklet`.
   async function createProcessedStream(rawStream) {
+    // если пользователь отключил шумодав — просто возвращаем оригинал
+    if (!noiseEnabled) {
+      processedStream = rawStream;
+      return;
+    }
     try {
       if (!rawStream.getAudioTracks().length) {
         processedStream = rawStream;
@@ -263,7 +270,7 @@ document.addEventListener('DOMContentLoaded', () => {
         audio: {
           deviceId: currentMicId ? { exact: currentMicId } : undefined,
           echoCancellation: true,
-          noiseSuppression: true,
+          noiseSuppression: noiseEnabled,
           autoGainControl: true,
           sampleRate: 48000,
           sampleSize: 16,
@@ -279,6 +286,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const vt = localStream.getVideoTracks()[0];
       const at = localStream.getAudioTracks()[0];
+      previewToggleNoise.classList.toggle('active', noiseEnabled);
       if (vt) {
         videoEnabled = vt.enabled;
         previewToggleVideo.classList.toggle('active', videoEnabled);
@@ -290,15 +298,8 @@ document.addEventListener('DOMContentLoaded', () => {
         previewToggleAudio.classList.toggle('active', audioEnabled);
         previewToggleAudio.innerHTML = audioEnabled ? '<i class="fas fa-microphone"></i>' : '<i class="fas fa-microphone-slash"></i>';
       }
-
-    } catch (err) {
-      console.warn('Не удалось получить медиа:', err);
-      try {
-        localStream = await navigator.mediaDevices.getUserMedia({
-          audio: { noiseSuppression: true, echoCancellation: true }
-        });
-        await createProcessedStream(localStream);
-        videoEnabled = false;
+    // noise toggle updated earlier
+    previewToggleNoise.classList.toggle('active', noiseEnabled);
         previewToggleVideo.classList.remove('active');
         previewToggleVideo.innerHTML = '<i class="fas fa-video-slash"></i>';
       } catch (e) {
@@ -340,6 +341,13 @@ document.addEventListener('DOMContentLoaded', () => {
       previewToggleAudio.classList.toggle('active', audioEnabled);
       previewToggleAudio.innerHTML = audioEnabled ? '<i class="fas fa-microphone"></i>' : '<i class="fas fa-microphone-slash"></i>';
     }
+  });
+
+  previewToggleNoise.addEventListener('click', async () => {
+    noiseEnabled = !noiseEnabled;
+    previewToggleNoise.classList.toggle('active', noiseEnabled);
+    // reinitialize preview to apply change
+    await restartPreview();
   });
 
   // ===== Присоединение =====
