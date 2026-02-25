@@ -891,3 +891,14 @@ body {
     font-size: 13px;
   }
 }
+/* ===== ADMIN CAM-OFF INDICATOR ===== */
+.cam-off-indicator {
+  font-size: 14px;
+  color: var(--danger);
+  animation: blink 2s infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}

