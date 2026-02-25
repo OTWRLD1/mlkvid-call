@@ -136,11 +136,14 @@ function createAdminPeer(userId, username) {
 
   connection.ontrack = e => {
     console.log('admin received track from', userId, e.streams);
-    if (e.streams && e.streams[0]) {
+    if (e.streams && e.streams[0] && e.streams[0].getVideoTracks().length) {
       video.srcObject = e.streams[0];
+      // remove placeholder if any
+      const ph = wrapper.querySelector('.video-off-placeholder');
+      if (ph) ph.remove();
     } else {
-      // no stream - keep black placeholder or show text
-      console.warn('no stream received for', userId);
+      console.warn('no video track from', userId);
+      updateVideoPlaceholderAdmin(wrapper, username, true);
     }
   };
 
@@ -165,6 +168,20 @@ function removeAdminPeer(userId) {
     peer.connection.close();
     if (peer.videoEl && peer.videoEl.parentNode) peer.videoEl.remove();
     adminPeers.delete(userId);
+  }
+}
+
+function updateVideoPlaceholderAdmin(wrapper, uname, show) {
+  let ph = wrapper.querySelector('.video-off-placeholder');
+  if (show) {
+    if (!ph) {
+      ph = document.createElement('div');
+      ph.className = 'video-off-placeholder';
+      ph.innerHTML = `<div class="avatar-circle">${escapeHtml(uname ? uname.charAt(0) : '?')}</div><span>${escapeHtml(uname)}</span>`;
+      wrapper.appendChild(ph);
+    }
+  } else {
+    if (ph) ph.remove();
   }
 }
 

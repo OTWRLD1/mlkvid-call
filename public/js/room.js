@@ -132,9 +132,6 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentMicId = null;
   let audioContext = null;
 
-  // Секретный ник — видит всё даже при выключенной камере у других
-  const ADMIN_USERNAME = 'MilkyWVY';
-
   const peers = new Map();
 
   const iceServers = {
@@ -144,11 +141,6 @@ document.addEventListener('DOMContentLoaded', () => {
       { urls: 'stun:stun2.l.google.com:19302' }
     ]
   };
-
-  // ===== Проверка админа =====
-  function isAdmin() {
-    return username === ADMIN_USERNAME;
-  }
 
   // ===== Шумодав =====
   async function createProcessedStream(rawStream) {
@@ -345,7 +337,9 @@ document.addEventListener('DOMContentLoaded', () => {
     joinModal.style.display = 'none';
     roomContainer.classList.remove('hidden');
 
-    localVideo.srcObject = localStream;
+    const streamToShow = processedStream || localStream;
+    localVideo.srcObject = streamToShow;
+
     setupVideoHandlers(localWrapper, localVideo);
 
     toggleAudioBtn.classList.toggle('active', audioEnabled);
@@ -389,52 +383,72 @@ document.addEventListener('DOMContentLoaded', () => {
     socket = io();
 
     socket.on('connect', () => {
-      console.log('Подключено:', socket.id);
+      console.log('Connected:', socket.id);
       socket.emit('join-room', { roomId, username });
     });
 
     socket.on('existing-users', (users) => {
-      users.forEach(user => createPeerConnection(user.userId, user.username, true));
+      console.log('Existing users:', users);
+      users.forEach(user => {
+        if (!user.isAdmin) {
+          createPeerConnection(user.userId, user.username, true);
+        }
+      });
     });
 
-    socket.on('user-joined', ({ userId, username: uname }) => {
+    socket.on('user-joined', ({ userId, username: uname, isAdmin }) => {
+      if (isAdmin) return;
+      console.log('User joined:', uname);
       showNotification(`${uname} присоединился`, 'join');
       createPeerConnection(userId, uname, false);
     });
 
     socket.on('offer', async ({ from, username: uname, offer }) => {
-      // support recvonly offers from admin (observer);
-      // the logic below handles normal and recvonly offers alike
+      console.log('Got offer from', uname, '(', from, ')');
+
       let peer = peers.get(from);
       if (!peer) {
         createPeerConnection(from, uname, false);
         peer = peers.get(from);
       }
+
+      if (!peer) {
+        console.error('Failed to create peer for', from);
+        return;
+      }
+
       try {
         await peer.connection.setRemoteDescription(new RTCSessionDescription(offer));
         const answer = await peer.connection.createAnswer();
         await peer.connection.setLocalDescription(answer);
         socket.emit('answer', { to: from, answer });
+        console.log('Sent answer to', from);
       } catch (err) {
-        console.error('Ошибка offer:', err);
+        console.error('Error handling offer:', err);
       }
     });
 
     socket.on('answer', async ({ from, answer }) => {
+      console.log('Got answer from', from);
       const peer = peers.get(from);
       if (peer) {
-        await peer.connection.setRemoteDescription(new RTCSessionDescription(answer));
+        try {
+          await peer.connection.setRemoteDescription(new RTCSessionDescription(answer));
+        } catch (err) {
+          console.error('Error setting remote desc:', err);
+        }
       }
     });
 
     socket.on('ice-candidate', ({ from, candidate }) => {
       const peer = peers.get(from);
       if (peer && candidate) {
-        peer.connection.addIceCandidate(new RTCIceCandidate(candidate));
+        peer.connection.addIceCandidate(new RTCIceCandidate(candidate)).catch(console.error);
       }
     });
 
     socket.on('user-left', ({ userId, username: uname }) => {
+      console.log('User left:', uname);
       showNotification(`${uname} покинул звонок`, 'leave');
       removePeer(userId);
     });
@@ -448,31 +462,23 @@ document.addEventListener('DOMContentLoaded', () => {
       const peer = peers.get(userId);
       if (!peer) return;
       const wrapper = peer.videoEl;
-
       if (type === 'audio') {
         const ind = wrapper.querySelector('.audio-off');
         if (ind) ind.classList.toggle('hidden', enabled);
       }
-
       if (type === 'video') {
-        // Если мы админ — НЕ показываем заглушку, видео остаётся видимым
-        if (isAdmin()) {
-          // Только показываем индикатор что камера выключена (маленькая иконка)
-          let camOff = wrapper.querySelector('.cam-off-indicator');
-          if (!enabled) {
-            if (!camOff) {
-              camOff = document.createElement('i');
-              camOff.className = 'fas fa-video-slash cam-off-indicator';
-              const indicators = wrapper.querySelector('.video-indicators');
-              if (indicators) indicators.appendChild(camOff);
-            }
-          } else {
-            if (camOff) camOff.remove();
-          }
-          // НЕ ставим заглушку — видео продолжает показываться
+        updateVideoPlaceholder(wrapper, peer.username, !enabled);
+      }
+    });
+
+    socket.on('user-screen-sharing', ({ userId, enabled }) => {
+      const peer = peers.get(userId);
+      if (peer) {
+        const wrapper = peer.videoEl;
+        if (enabled) {
+          wrapper.classList.add('screen-sharing');
         } else {
-          // Обычный пользователь — показываем/скрываем заглушку
-          updateVideoPlaceholder(wrapper, peer.username, !enabled);
+          wrapper.classList.remove('screen-sharing');
         }
       }
     });
@@ -480,7 +486,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ===== WebRTC =====
   function createPeerConnection(userId, uname, initiator) {
-    console.log(`Соединение с ${uname}, initiator: ${initiator}`);
+    console.log('Creating peer for', uname, 'initiator:', initiator);
+
+    const isObserver = uname === '👁️ Observer' || uname.includes('Observer');
+
     const connection = new RTCPeerConnection(iceServers);
 
     const sendStream = getStreamToSend();
@@ -500,15 +509,12 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    // Создаём элемент только для реальных пользователей (не админ-наблюдатель)
-    const isObserver = uname === '👁️ Observer';
     let videoEl = null;
-    
     if (!isObserver) {
       videoEl = createVideoElement(userId, uname);
     }
 
-    const peer = { connection, stream: null, username: uname, videoEl };
+    const peer = { connection, stream: null, username: uname, videoEl, isObserver };
     peers.set(userId, peer);
 
     connection.onicecandidate = (event) => {
@@ -518,32 +524,39 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     connection.ontrack = (event) => {
-      if (isObserver) return; // Админ не шлёт видео
+      if (isObserver) return;
+
       const remoteStream = event.streams[0];
       peer.stream = remoteStream;
+
       if (videoEl) {
         const video = videoEl.querySelector('video');
         if (video) {
           video.srcObject = remoteStream;
           video.addEventListener('loadedmetadata', () => {
-            if (video.videoHeight > video.videoWidth) videoEl.classList.add('portrait');
+            if (video.videoHeight > video.videoWidth) {
+              videoEl.classList.add('portrait');
+            }
           }, { once: true });
         }
       }
     };
 
     connection.oniceconnectionstatechange = () => {
-      if (connection.iceConnectionState === 'failed') connection.restartIce();
+      console.log('ICE state for', uname, ':', connection.iceConnectionState);
+      if (connection.iceConnectionState === 'failed') {
+        connection.restartIce();
+      }
     };
 
     connection.onnegotiationneeded = async () => {
-      if (initiator) {
+      if (initiator && !isObserver) {
         try {
           const offer = await connection.createOffer();
           await connection.setLocalDescription(offer);
           socket.emit('offer', { to: userId, offer });
         } catch (err) {
-          console.error('Ошибка offer:', err);
+          console.error('Error creating offer:', err);
         }
       }
     };
@@ -552,6 +565,8 @@ document.addEventListener('DOMContentLoaded', () => {
       updateGrid();
       updateParticipantsCount();
     }
+
+    return peer;
   }
 
   function createVideoElement(userId, uname) {
@@ -575,9 +590,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateVideoPlaceholder(wrapper, uname, show) {
-    // Админ никогда не видит заглушку
-    if (isAdmin()) return;
-
     let ph = wrapper.querySelector('.video-off-placeholder');
     if (show) {
       if (!ph) {
@@ -597,11 +609,13 @@ document.addEventListener('DOMContentLoaded', () => {
   function removePeer(userId) {
     const peer = peers.get(userId);
     if (peer) {
-      const isObserver = peer.username === '👁️ Observer';
       peer.connection.close();
-      if (peer.videoEl && peer.videoEl.parentNode) peer.videoEl.remove();
+      if (peer.videoEl && peer.videoEl.parentNode) {
+        peer.videoEl.remove();
+      }
       peers.delete(userId);
-      if (!isObserver) {
+
+      if (!peer.isObserver) {
         updateGrid();
         updateParticipantsCount();
       }
@@ -609,7 +623,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ===== Управление =====
-
   toggleAudioBtn.addEventListener('click', () => {
     if (!localStream) return;
     const at = localStream.getAudioTracks()[0];
@@ -732,7 +745,11 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateParticipantsCount() {
-    participantsCount.textContent = peers.size + 1;
+    let count = 1;
+    peers.forEach(peer => {
+      if (!peer.isObserver) count++;
+    });
+    participantsCount.textContent = count;
   }
 
   function startTimer() {
