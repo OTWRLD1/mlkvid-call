@@ -845,3 +845,65 @@ body {
     font-size: 13px;
   }
 }
+/* ===== DEVICE SELECTORS ===== */
+.device-selectors {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.select-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  transition: var(--transition);
+}
+
+.select-group:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.select-group i {
+  color: var(--accent);
+  font-size: 14px;
+  width: 20px;
+  text-align: center;
+}
+
+.select-group select {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+  cursor: pointer;
+}
+
+.select-group select option {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+/* ===== VIDEO MIRROR FIX ===== */
+/* Локальное видео зеркалим только для камеры, не для демонстрации */
+.video-wrapper.local video {
+  transform: scaleX(-1);
+}
+
+/* Удаленные видео не зеркалим */
+.video-wrapper:not(.local) video {
+  transform: none;
+}
+
+/* В полноэкранном режиме демонстрация не зеркалится */
+.video-wrapper.fullscreen video {
+  transform: none !important;
+}

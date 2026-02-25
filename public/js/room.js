@@ -7,6 +7,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const previewPlaceholder = document.getElementById('preview-placeholder');
   const previewToggleVideo = document.getElementById('preview-toggle-video');
   const previewToggleAudio = document.getElementById('preview-toggle-audio');
+  const cameraSelect = document.getElementById('camera-select');
+  const micSelect = document.getElementById('mic-select');
 
   const roomContainer = document.getElementById('room-container');
   const videoGrid = document.getElementById('video-grid');
@@ -33,65 +35,142 @@ document.addEventListener('DOMContentLoaded', () => {
   let screenSharing = false;
   let timerInterval = null;
   let callStartTime = null;
+  let currentCameraId = null;
+  let currentMicId = null;
 
   // Хранение пиров
-  const peers = new Map(); // userId -> { connection, stream, username, videoEl }
+  const peers = new Map();
 
   // ICE серверы
   const iceServers = {
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },
-      { urls: 'stun:stun2.l.google.com:19302' },
-      { urls: 'stun:stun3.l.google.com:19302' },
-      { urls: 'stun:stun4.l.google.com:19302' }
+      { urls: 'stun:stun2.l.google.com:19302' }
     ]
   };
 
   // ===== Инициализация =====
   roomIdDisplay.textContent = roomId;
 
-  // Загрузить имя
   const savedName = localStorage.getItem('videocall-username');
   if (savedName) {
     joinUsernameInput.value = savedName;
   }
 
-  // Запросить превью с максимальным шумодавом
-  initPreview();
+  // Загрузка и выбор устройств
+  initDevices();
+
+  async function initDevices() {
+    try {
+      // Запрашиваем разрешение первый раз, чтобы получить список устройств
+      const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+      tempStream.getTracks().forEach(t => t.stop());
+      
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      
+      const cameras = devices.filter(d => d.kind === 'videoinput');
+      const mics = devices.filter(d => d.kind === 'audioinput');
+      
+      // Заполняем селекторы
+      cameraSelect.innerHTML = cameras.map((cam, idx) => 
+        `<option value="${cam.deviceId}" ${idx === 0 ? 'selected' : ''}>${cam.label || `Камера ${idx + 1}`}</option>`
+      ).join('');
+      
+      micSelect.innerHTML = mics.map((mic, idx) => 
+        `<option value="${mic.deviceId}" ${idx === 0 ? 'selected' : ''}>${mic.label || `Микрофон ${idx + 1}`}</option>`
+      ).join('');
+      
+      currentCameraId = cameraSelect.value;
+      currentMicId = micSelect.value;
+      
+      // Инициализация превью с выбранными устройствами
+      initPreview();
+      
+      // Обработчики смены устройств
+      cameraSelect.addEventListener('change', async () => {
+        currentCameraId = cameraSelect.value;
+        await restartPreview();
+      });
+      
+      micSelect.addEventListener('change', async () => {
+        currentMicId = micSelect.value;
+        await restartPreview();
+      });
+      
+    } catch (err) {
+      console.error('Ошибка доступа к устройствам:', err);
+      // Пробуем без разрешений (будет пустой список)
+      initPreview();
+    }
+  }
 
   async function initPreview() {
     try {
-      localStream = await navigator.mediaDevices.getUserMedia({
-        video: {
+      const constraints = {
+        video: currentCameraId ? {
+          deviceId: { exact: currentCameraId },
           width: { ideal: 1280 },
-          height: { ideal: 720 },
-          facingMode: 'user'
+          height: { ideal: 720 }
+        } : {
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
         },
-        audio: {
-          // Максимальный шумодав (как в модах Minecraft)
+        audio: currentMicId ? {
+          deviceId: { exact: currentMicId },
           echoCancellation: { ideal: true },
           noiseSuppression: { ideal: true },
           autoGainControl: { ideal: true },
-          // Специфичные для Chrome (работают лучше стандарта)
           googEchoCancellation: true,
           googNoiseSuppression: true,
           googAutoGainControl: true,
           googHighpassFilter: true,
           googTypingNoiseDetection: true,
           googNoiseReduction: true,
-          // Качество аудио
+          sampleRate: { ideal: 48000 },
+          sampleSize: { ideal: 16 },
+          channelCount: { ideal: 1 }
+        } : {
+          echoCancellation: { ideal: true },
+          noiseSuppression: { ideal: true },
+          autoGainControl: { ideal: true },
+          googEchoCancellation: true,
+          googNoiseSuppression: true,
+          googAutoGainControl: true,
+          googHighpassFilter: true,
+          googTypingNoiseDetection: true,
+          googNoiseReduction: true,
           sampleRate: { ideal: 48000 },
           sampleSize: { ideal: 16 },
           channelCount: { ideal: 1 }
         }
-      });
+      };
+      
+      localStream = await navigator.mediaDevices.getUserMedia(constraints);
       previewVideo.srcObject = localStream;
       previewPlaceholder.classList.add('hidden');
+      
+      // Обновляем состояние кнопок
+      const videoTrack = localStream.getVideoTracks()[0];
+      const audioTrack = localStream.getAudioTracks()[0];
+      
+      if (videoTrack) {
+        videoEnabled = videoTrack.enabled;
+        previewToggleVideo.classList.toggle('active', videoEnabled);
+        previewToggleVideo.innerHTML = videoEnabled ? '<i class="fas fa-video"></i>' : '<i class="fas fa-video-slash"></i>';
+        previewPlaceholder.classList.toggle('hidden', videoEnabled);
+      }
+      
+      if (audioTrack) {
+        audioEnabled = audioTrack.enabled;
+        previewToggleAudio.classList.toggle('active', audioEnabled);
+        previewToggleAudio.innerHTML = audioEnabled ? '<i class="fas fa-microphone"></i>' : '<i class="fas fa-microphone-slash"></i>';
+      }
+      
     } catch (err) {
       console.warn('Не удалось получить медиа:', err);
-      // Пробуем только аудио
       try {
+        // Пробуем только аудио
         localStream = await navigator.mediaDevices.getUserMedia({ 
           audio: {
             echoCancellation: { ideal: true },
@@ -115,6 +194,13 @@ document.addEventListener('DOMContentLoaded', () => {
         previewToggleAudio.classList.remove('active');
       }
     }
+  }
+
+  async function restartPreview() {
+    if (localStream) {
+      localStream.getTracks().forEach(t => t.stop());
+    }
+    await initPreview();
   }
 
   // Превью кнопки
@@ -161,17 +247,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     localStorage.setItem('videocall-username', username);
 
-    // Показать комнату
     joinModal.style.display = 'none';
     roomContainer.classList.remove('hidden');
 
-    // Установить локальное видео
     localVideo.srcObject = localStream;
+    
+    // Убираем зеркальность при демонстрации экрана будет проверяться в toggleScreen
+    updateLocalVideoTransform();
 
-    // Настройка обработчиков для локального видео (fullscreen + portrait)
     setupVideoHandlers(document.getElementById('local-video-wrapper'), localVideo, 'Вы');
 
-    // Синхронизировать кнопки
     toggleAudioBtn.classList.toggle('active', audioEnabled);
     toggleAudioBtn.querySelector('i').className = audioEnabled
       ? 'fas fa-microphone' : 'fas fa-microphone-slash';
@@ -181,20 +266,27 @@ document.addEventListener('DOMContentLoaded', () => {
     toggleVideoBtn.querySelector('i').className = videoEnabled
       ? 'fas fa-video' : 'fas fa-video-slash';
 
-    // Подключиться к сокету
     connectSocket();
-
-    // Запустить таймер
     startTimer();
-
-    // Обновить сетку
     updateGrid();
   }
 
   // ===== Утилиты для видео =====
   
+  function updateLocalVideoTransform() {
+    const wrapper = document.getElementById('local-video-wrapper');
+    if (screenSharing) {
+      // Демонстрация экрана - не зеркалим
+      localVideo.style.transform = 'none';
+      wrapper.classList.remove('local');
+    } else {
+      // Камера - зеркалим для локального пользователя (как в зеркале)
+      localVideo.style.transform = 'scaleX(-1)';
+      wrapper.classList.add('local');
+    }
+  }
+
   function setupVideoHandlers(wrapper, videoEl, uname) {
-    // Определение вертикального видео
     const checkOrientation = () => {
       if (videoEl.videoHeight > videoEl.videoWidth) {
         wrapper.classList.add('portrait');
@@ -204,14 +296,10 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     videoEl.addEventListener('loadedmetadata', checkOrientation);
-    // Проверяем сразу если метаданные уже загружены
     if (videoEl.readyState >= 1) checkOrientation();
 
-    // Обработчик клика для полноэкранного режима
     wrapper.addEventListener('click', (e) => {
-      // Игнорируем клики по индикаторам микрофона
       if (e.target.closest('.video-indicators')) return;
-      
       toggleFullscreen(wrapper);
     });
   }
@@ -219,12 +307,10 @@ document.addEventListener('DOMContentLoaded', () => {
   function toggleFullscreen(wrapper) {
     const isFullscreen = wrapper.classList.contains('fullscreen');
     
-    // Закрываем все открытые fullscreen
     document.querySelectorAll('.video-wrapper.fullscreen').forEach(el => {
       el.classList.remove('fullscreen');
     });
 
-    // Если не был fullscreen - открываем
     if (!isFullscreen) {
       wrapper.classList.add('fullscreen');
     }
@@ -239,7 +325,6 @@ document.addEventListener('DOMContentLoaded', () => {
       socket.emit('join-room', { roomId, username });
     });
 
-    // Список существующих пользователей
     socket.on('existing-users', (users) => {
       console.log('Существующие пользователи:', users);
       users.forEach(user => {
@@ -247,14 +332,12 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
-    // Новый пользователь
     socket.on('user-joined', ({ userId, username: uname }) => {
       console.log(`${uname} присоединился`);
       showNotification(`${uname} присоединился`, 'join');
       createPeerConnection(userId, uname, false);
     });
 
-    // Получение offer
     socket.on('offer', async ({ from, username: uname, offer }) => {
       console.log('Получен offer от', from);
       let peer = peers.get(from);
@@ -273,7 +356,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // Получение answer
     socket.on('answer', async ({ from, answer }) => {
       console.log('Получен answer от', from);
       const peer = peers.get(from);
@@ -286,7 +368,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // ICE candidate
     socket.on('ice-candidate', ({ from, candidate }) => {
       const peer = peers.get(from);
       if (peer && candidate) {
@@ -294,20 +375,17 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // Пользователь ушёл
     socket.on('user-left', ({ userId, username: uname }) => {
       console.log(`${uname} покинул звонок`);
       showNotification(`${uname} покинул звонок`, 'leave');
       removePeer(userId);
     });
 
-    // Комната переполнена
     socket.on('room-full', () => {
       alert('Комната переполнена (максимум 10 участников)');
       window.location.href = '/';
     });
 
-    // Переключение медиа другим пользователем
     socket.on('user-toggle-media', ({ userId, type, enabled }) => {
       const peer = peers.get(userId);
       if (!peer) return;
@@ -322,7 +400,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // Демонстрация экрана другим пользователем
     socket.on('user-screen-sharing', ({ userId, enabled }) => {
       const peer = peers.get(userId);
       if (peer) {
@@ -342,14 +419,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const connection = new RTCPeerConnection(iceServers);
 
-    // Добавить локальные треки
     if (localStream) {
       localStream.getTracks().forEach(track => {
         connection.addTrack(track, localStream);
       });
     }
 
-    // Создать видео элемент для удалённого пользователя
     const videoEl = createVideoElement(userId, uname);
 
     const peer = {
@@ -360,7 +435,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     peers.set(userId, peer);
 
-    // ICE candidates
     connection.onicecandidate = (event) => {
       if (event.candidate) {
         socket.emit('ice-candidate', {
@@ -370,7 +444,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     };
 
-    // Получение удалённого потока
     connection.ontrack = (event) => {
       console.log('Получен трек от', uname);
       const remoteStream = event.streams[0];
@@ -378,7 +451,6 @@ document.addEventListener('DOMContentLoaded', () => {
       const video = videoEl.querySelector('video');
       if (video) {
         video.srcObject = remoteStream;
-        // Проверим ориентацию после загрузки метаданных
         video.addEventListener('loadedmetadata', () => {
           if (video.videoHeight > video.videoWidth) {
             videoEl.classList.add('portrait');
@@ -387,12 +459,10 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     };
 
-    // Отслеживание состояния
     connection.oniceconnectionstatechange = () => {
       console.log(`ICE состояние с ${uname}: ${connection.iceConnectionState}`);
       if (connection.iceConnectionState === 'disconnected' ||
           connection.iceConnectionState === 'failed') {
-        // Попытка переподключения
         if (connection.iceConnectionState === 'failed') {
           connection.restartIce();
         }
@@ -432,7 +502,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const video = wrapper.querySelector('video');
     
-    // Настраиваем обработчики для полноэкранного режима и определения ориентации
+    // Удаленные видео никогда не зеркалим
+    video.style.transform = 'none';
+    
     setupVideoHandlers(wrapper, video, uname);
 
     videoGrid.appendChild(wrapper);
@@ -475,7 +547,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ===== Управление =====
 
-  // Микрофон
   toggleAudioBtn.addEventListener('click', () => {
     if (!localStream) return;
     const audioTrack = localStream.getAudioTracks()[0];
@@ -492,7 +563,6 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.emit('toggle-media', { type: 'audio', enabled: audioEnabled });
   });
 
-  // Камера
   toggleVideoBtn.addEventListener('click', () => {
     if (!localStream) return;
     const videoTrack = localStream.getVideoTracks()[0];
@@ -505,43 +575,69 @@ document.addEventListener('DOMContentLoaded', () => {
     toggleVideoBtn.querySelector('i').className = videoEnabled
       ? 'fas fa-video' : 'fas fa-video-slash';
 
-    // Показать/скрыть заглушку для локального видео
     const localWrapper = document.getElementById('local-video-wrapper');
     updateVideoPlaceholder(localWrapper, username, !videoEnabled);
 
     socket.emit('toggle-media', { type: 'video', enabled: videoEnabled });
   });
 
-  // Демонстрация экрана
+  // Демонстрация экрана с аудио
   toggleScreenBtn.addEventListener('click', async () => {
     if (!screenSharing) {
       try {
+        // Захватываем видео и аудио с экрана (system audio)
         screenStream = await navigator.mediaDevices.getDisplayMedia({
           video: { cursor: 'always' },
-          audio: false
-        });
-
-        const screenTrack = screenStream.getVideoTracks()[0];
-
-        // Заменить видео-трек у всех пиров
-        peers.forEach((peer) => {
-          const sender = peer.connection.getSenders().find(s => s.track && s.track.kind === 'video');
-          if (sender) {
-            sender.replaceTrack(screenTrack);
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            sampleRate: 48000
           }
         });
 
-        // Заменить локальное видео
+        const screenVideoTrack = screenStream.getVideoTracks()[0];
+        const screenAudioTrack = screenStream.getAudioTracks()[0];
+
+        // Заменяем видео-трек у всех пиров
+        peers.forEach((peer) => {
+          const videoSender = peer.connection.getSenders().find(s => s.track && s.track.kind === 'video');
+          if (videoSender) {
+            videoSender.replaceTrack(screenVideoTrack);
+          }
+          
+          // Добавляем аудио-трек с экрана, если его еще нет
+          if (screenAudioTrack) {
+            const audioSender = peer.connection.getSenders().find(s => s.track && s.track.kind === 'audio');
+            if (audioSender) {
+              // Создаем новый трансивер для аудио экрана или заменяем существующий
+              audioSender.replaceTrack(screenAudioTrack);
+            } else {
+              peer.connection.addTrack(screenAudioTrack, screenStream);
+            }
+          }
+        });
+
+        // Показываем демонстрацию локально
         localVideo.srcObject = screenStream;
+        
+        // Убираем зеркальность для демонстрации
+        updateLocalVideoTransform();
 
         screenSharing = true;
         toggleScreenBtn.classList.add('active');
         socket.emit('screen-sharing', { enabled: true });
 
-        // Обработка остановки через системный интерфейс
-        screenTrack.onended = () => {
+        // Обработка остановки демонстрации
+        screenVideoTrack.onended = () => {
           stopScreenSharing();
         };
+        
+        if (screenAudioTrack) {
+          screenAudioTrack.onended = () => {
+            // Если аудио остановилось раньше видео
+            if (screenSharing) stopScreenSharing();
+          };
+        }
 
       } catch (err) {
         console.error('Ошибка демонстрации экрана:', err);
@@ -555,17 +651,26 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!screenSharing) return;
 
     const videoTrack = localStream.getVideoTracks()[0];
+    const audioTrack = localStream.getAudioTracks()[0];
 
-    // Вернуть видео-трек камеры
+    // Возвращаем треки камеры и микрофона
     peers.forEach((peer) => {
-      const sender = peer.connection.getSenders().find(s => s.track && s.track.kind === 'video');
-      if (sender && videoTrack) {
-        sender.replaceTrack(videoTrack);
+      const videoSender = peer.connection.getSenders().find(s => s.track && s.track.kind === 'video');
+      if (videoSender && videoTrack) {
+        videoSender.replaceTrack(videoTrack);
+      }
+      
+      const audioSender = peer.connection.getSenders().find(s => s.track && s.track.kind === 'audio');
+      if (audioSender && audioTrack) {
+        audioSender.replaceTrack(audioTrack);
       }
     });
 
-    // Вернуть локальное видео
+    // Возвращаем локальное видео камеры
     localVideo.srcObject = localStream;
+    
+    // Возвращаем зеркальность для камеры
+    updateLocalVideoTransform();
 
     if (screenStream) {
       screenStream.getTracks().forEach(t => t.stop());
@@ -577,13 +682,11 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.emit('screen-sharing', { enabled: false });
   }
 
-  // Выйти
   leaveBtn.addEventListener('click', () => {
     leaveRoom();
   });
 
   function leaveRoom() {
-    // Остановить все треки
     if (localStream) {
       localStream.getTracks().forEach(t => t.stop());
     }
@@ -591,18 +694,15 @@ document.addEventListener('DOMContentLoaded', () => {
       screenStream.getTracks().forEach(t => t.stop());
     }
 
-    // Закрыть все соединения
     peers.forEach((peer, userId) => {
       peer.connection.close();
     });
     peers.clear();
 
-    // Отключить сокет
     if (socket) {
       socket.disconnect();
     }
 
-    // Остановить таймер
     if (timerInterval) {
       clearInterval(timerInterval);
     }
@@ -610,13 +710,11 @@ document.addEventListener('DOMContentLoaded', () => {
     window.location.href = '/';
   }
 
-  // Копировать ссылку
   copyLinkBtn.addEventListener('click', () => {
     const url = window.location.href;
     navigator.clipboard.writeText(url).then(() => {
       showCopyToast();
     }).catch(() => {
-      // Fallback
       const input = document.createElement('input');
       input.value = url;
       document.body.appendChild(input);
@@ -635,11 +733,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 2000);
   }
 
-  // ===== Утилиты =====
-
   function updateGrid() {
-    const count = peers.size + 1; // +1 для локального
-    // Убрать старые классы
+    const count = peers.size + 1;
     videoGrid.className = 'video-grid';
     videoGrid.classList.add(`grid-${Math.min(count, 10)}`);
   }
@@ -684,8 +779,6 @@ document.addEventListener('DOMContentLoaded', () => {
     return div.innerHTML;
   }
 
-  // ===== Глобальные обработчики =====
-
   // Выход из полноэкранного по ESC
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
@@ -695,7 +788,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Обработка закрытия страницы
   window.addEventListener('beforeunload', () => {
     if (socket) {
       socket.disconnect();
