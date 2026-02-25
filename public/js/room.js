@@ -301,7 +301,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const vt = localStream.getVideoTracks()[0];
       const at = localStream.getAudioTracks()[0];
-      if (previewToggleNoise) previewToggleNoise.classList.toggle('active', noiseEnabled);
+
       if (vt) {
         videoEnabled = vt.enabled;
         previewToggleVideo.classList.toggle('active', videoEnabled);
@@ -313,18 +313,17 @@ document.addEventListener('DOMContentLoaded', () => {
         previewToggleAudio.classList.toggle('active', audioEnabled);
         previewToggleAudio.innerHTML = audioEnabled ? '<i class="fas fa-microphone"></i>' : '<i class="fas fa-microphone-slash"></i>';
       }
-    // noise toggle updated earlier
-    if (previewToggleNoise) previewToggleNoise.classList.toggle('active', noiseEnabled);
-        previewToggleVideo.classList.remove('active');
-        previewToggleVideo.innerHTML = '<i class="fas fa-video-slash"></i>';
-      } catch (e) {
-        localStream = new MediaStream();
-        processedStream = localStream;
-        videoEnabled = false;
-        audioEnabled = false;
-        previewToggleVideo.classList.remove('active');
-        previewToggleAudio.classList.remove('active');
-      }
+      if (previewToggleNoise) previewToggleNoise.classList.toggle('active', noiseEnabled);
+    } catch (e) {
+      console.warn('initPreview error:', e);
+      localStream = new MediaStream();
+      processedStream = localStream;
+      videoEnabled = false;
+      audioEnabled = false;
+      previewToggleVideo.classList.remove('active');
+      previewToggleVideo.innerHTML = '<i class="fas fa-video-slash"></i>';
+      previewToggleAudio.classList.remove('active');
+      previewPlaceholder.classList.remove('hidden');
     }
   }
 
