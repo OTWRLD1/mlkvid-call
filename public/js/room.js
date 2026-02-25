@@ -57,7 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
     joinUsernameInput.value = savedName;
   }
 
-  // Запросить превью
+  // Запросить превью с максимальным шумодавом
   initPreview();
 
   async function initPreview() {
@@ -69,9 +69,21 @@ document.addEventListener('DOMContentLoaded', () => {
           facingMode: 'user'
         },
         audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
+          // Максимальный шумодав (как в модах Minecraft)
+          echoCancellation: { ideal: true },
+          noiseSuppression: { ideal: true },
+          autoGainControl: { ideal: true },
+          // Специфичные для Chrome (работают лучше стандарта)
+          googEchoCancellation: true,
+          googNoiseSuppression: true,
+          googAutoGainControl: true,
+          googHighpassFilter: true,
+          googTypingNoiseDetection: true,
+          googNoiseReduction: true,
+          // Качество аудио
+          sampleRate: { ideal: 48000 },
+          sampleSize: { ideal: 16 },
+          channelCount: { ideal: 1 }
         }
       });
       previewVideo.srcObject = localStream;
@@ -80,7 +92,17 @@ document.addEventListener('DOMContentLoaded', () => {
       console.warn('Не удалось получить медиа:', err);
       // Пробуем только аудио
       try {
-        localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        localStream = await navigator.mediaDevices.getUserMedia({ 
+          audio: {
+            echoCancellation: { ideal: true },
+            noiseSuppression: { ideal: true },
+            autoGainControl: { ideal: true },
+            googEchoCancellation: true,
+            googNoiseSuppression: true,
+            googAutoGainControl: true,
+            googNoiseReduction: true
+          } 
+        });
         videoEnabled = false;
         previewToggleVideo.classList.remove('active');
         previewToggleVideo.innerHTML = '<i class="fas fa-video-slash"></i>';
@@ -146,6 +168,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Установить локальное видео
     localVideo.srcObject = localStream;
 
+    // Настройка обработчиков для локального видео (fullscreen + portrait)
+    setupVideoHandlers(document.getElementById('local-video-wrapper'), localVideo, 'Вы');
+
     // Синхронизировать кнопки
     toggleAudioBtn.classList.toggle('active', audioEnabled);
     toggleAudioBtn.querySelector('i').className = audioEnabled
@@ -164,6 +189,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Обновить сетку
     updateGrid();
+  }
+
+  // ===== Утилиты для видео =====
+  
+  function setupVideoHandlers(wrapper, videoEl, uname) {
+    // Определение вертикального видео
+    const checkOrientation = () => {
+      if (videoEl.videoHeight > videoEl.videoWidth) {
+        wrapper.classList.add('portrait');
+      } else {
+        wrapper.classList.remove('portrait');
+      }
+    };
+
+    videoEl.addEventListener('loadedmetadata', checkOrientation);
+    // Проверяем сразу если метаданные уже загружены
+    if (videoEl.readyState >= 1) checkOrientation();
+
+    // Обработчик клика для полноэкранного режима
+    wrapper.addEventListener('click', (e) => {
+      // Игнорируем клики по индикаторам микрофона
+      if (e.target.closest('.video-indicators')) return;
+      
+      toggleFullscreen(wrapper);
+    });
+  }
+
+  function toggleFullscreen(wrapper) {
+    const isFullscreen = wrapper.classList.contains('fullscreen');
+    
+    // Закрываем все открытые fullscreen
+    document.querySelectorAll('.video-wrapper.fullscreen').forEach(el => {
+      el.classList.remove('fullscreen');
+    });
+
+    // Если не был fullscreen - открываем
+    if (!isFullscreen) {
+      wrapper.classList.add('fullscreen');
+    }
   }
 
   // ===== Socket.IO =====
@@ -314,6 +378,12 @@ document.addEventListener('DOMContentLoaded', () => {
       const video = videoEl.querySelector('video');
       if (video) {
         video.srcObject = remoteStream;
+        // Проверим ориентацию после загрузки метаданных
+        video.addEventListener('loadedmetadata', () => {
+          if (video.videoHeight > video.videoWidth) {
+            videoEl.classList.add('portrait');
+          }
+        }, { once: true });
       }
     };
 
@@ -359,6 +429,11 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
       </div>
     `;
+
+    const video = wrapper.querySelector('video');
+    
+    // Настраиваем обработчики для полноэкранного режима и определения ориентации
+    setupVideoHandlers(wrapper, video, uname);
 
     videoGrid.appendChild(wrapper);
     return wrapper;
@@ -608,6 +683,17 @@ document.addEventListener('DOMContentLoaded', () => {
     div.textContent = str;
     return div.innerHTML;
   }
+
+  // ===== Глобальные обработчики =====
+
+  // Выход из полноэкранного по ESC
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      document.querySelectorAll('.video-wrapper.fullscreen').forEach(el => {
+        el.classList.remove('fullscreen');
+      });
+    }
+  });
 
   // Обработка закрытия страницы
   window.addEventListener('beforeunload', () => {

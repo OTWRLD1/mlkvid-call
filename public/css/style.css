@@ -475,6 +475,7 @@ body {
   border: 2px solid transparent;
   transition: var(--transition);
   min-height: 0;
+  cursor: pointer;
 }
 
 .video-wrapper:hover {
@@ -558,4 +559,288 @@ body {
   font-size: 14px;
 }
 
-<!-- truncated rest of style content for brevity -->
+/* ===== CONTROLS BAR ===== */
+.controls-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 24px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border);
+  gap: 16px;
+}
+
+.controls-group {
+  display: flex;
+  gap: 12px;
+}
+
+.control-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: var(--transition);
+  min-width: 70px;
+}
+
+.control-btn i {
+  font-size: 20px;
+}
+
+.control-btn span {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.control-btn:hover {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+
+.control-btn.active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+.control-btn.leave {
+  background: var(--danger);
+  color: white;
+  border-color: var(--danger);
+}
+
+.control-btn.leave:hover {
+  background: #d32f2f;
+  transform: translateY(-2px);
+}
+
+/* ===== NOTIFICATIONS ===== */
+.notifications {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 2000;
+  pointer-events: none;
+}
+
+.notification {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: var(--shadow);
+  animation: slideIn 0.3s ease;
+  pointer-events: auto;
+}
+
+.notification i {
+  color: var(--accent);
+}
+
+.notification.join i {
+  color: var(--success);
+}
+
+.notification.leave i {
+  color: var(--danger);
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* ===== COPY TOAST ===== */
+.copy-toast {
+  position: fixed;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--success);
+  color: white;
+  padding: 12px 24px;
+  border-radius: 30px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  box-shadow: 0 4px 20px rgba(76, 175, 80, 0.3);
+  z-index: 2000;
+  animation: fadeUp 0.3s ease;
+}
+
+.copy-toast.hidden {
+  display: none;
+}
+
+@keyframes fadeUp {
+  from {
+    transform: translateX(-50%) translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+}
+
+/* ===== FULLSCREEN & PORTRAIT VIDEO ===== */
+
+/* Вертикальное видео - показываем полностью без обрезки */
+.video-wrapper.portrait {
+  background: #000;
+}
+
+.video-wrapper.portrait video {
+  object-fit: contain;
+}
+
+/* Полноэкранный режим при клике (как в Discord) */
+.video-wrapper.fullscreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 1000;
+  border-radius: 0;
+  border: none;
+  cursor: pointer;
+  background: #000;
+}
+
+.video-wrapper.fullscreen video {
+  object-fit: contain;
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+/* Для локального видео сохраняем зеркало в полноэкранном */
+.video-wrapper.local.fullscreen video {
+  transform: scaleX(-1);
+}
+
+/* Кнопка закрытия (крестик) */
+.video-wrapper.fullscreen::after {
+  content: '\f00d';
+  font-family: 'Font Awesome 6 Free';
+  font-weight: 900;
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 48px;
+  height: 48px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 20px;
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.3s ease;
+  z-index: 10;
+  backdrop-filter: blur(10px);
+  pointer-events: none;
+}
+
+.video-wrapper.fullscreen:hover::after {
+  opacity: 1;
+}
+
+/* Оверлей в полноэкранном режиме */
+.video-wrapper.fullscreen .video-overlay {
+  opacity: 0;
+  transition: opacity 0.3s;
+  position: absolute;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  right: auto;
+  top: auto;
+  background: rgba(0, 0, 0, 0.8);
+  padding: 12px 24px;
+  border-radius: 30px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  text-align: center;
+  min-width: 120px;
+}
+
+.video-wrapper.fullscreen:hover .video-overlay {
+  opacity: 1;
+}
+
+.video-wrapper.fullscreen .video-indicators {
+  position: absolute;
+  top: -40px;
+  right: 0;
+  left: 0;
+  justify-content: center;
+}
+
+/* Отключаем grid-ограничения в полноэкранном */
+.video-wrapper.fullscreen {
+  grid-column: auto !important;
+  grid-row: auto !important;
+  min-height: auto !important;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 768px) {
+  .home-card {
+    padding: 32px 24px;
+  }
+
+  .logo h1 {
+    font-size: 24px;
+  }
+
+  .controls-group {
+    gap: 8px;
+  }
+
+  .control-btn {
+    padding: 8px 12px;
+    min-width: 60px;
+  }
+
+  .control-btn span {
+    font-size: 11px;
+  }
+
+  .room-header {
+    padding: 10px 16px;
+  }
+
+  .room-stats {
+    gap: 12px;
+    font-size: 13px;
+  }
+}
