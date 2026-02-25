@@ -143,6 +143,11 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // ===== Шумодав =====
+  // По умолчанию используется rnnoise, но мы можем подключить
+  // DeepFilterNet (https://github.com/Rikorose/DeepFilterNet) если
+  // предварительно собрать из репозитория AudioWorklet-модуль.
+  // В простейшем случае сконвертируйте Python-реализцию в WASM/JS и
+  // поместите его сюда как переменную `deepFilterNetWorklet`.
   async function createProcessedStream(rawStream) {
     try {
       if (!rawStream.getAudioTracks().length) {
@@ -156,17 +161,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
       audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 48000 });
 
-      const blob = new Blob([noiseSuppressionWorklet], { type: 'application/javascript' });
-      const url = URL.createObjectURL(blob);
-      await audioContext.audioWorklet.addModule(url);
-      URL.revokeObjectURL(url);
+      let processorName = 'rnnoise-processor';
+      // сначала пытаемся загрузить DeepFilterNet
+      try {
+        if (typeof deepFilterNetWorklet !== 'undefined') {
+          const blobDF = new Blob([deepFilterNetWorklet], { type: 'application/javascript' });
+          const urlDF = URL.createObjectURL(blobDF);
+          await audioContext.audioWorklet.addModule(urlDF);
+          URL.revokeObjectURL(urlDF);
+          processorName = 'deepfilternet-processor';
+          console.log('DeepFilterNet worklet loaded');
+        }
+      } catch (err) {
+        console.warn('DeepFilterNet загрузить не удалось, используем rnnoise:', err);
+      }
+
+      if (processorName === 'rnnoise-processor') {
+        const blob = new Blob([noiseSuppressionWorklet], { type: 'application/javascript' });
+        const url = URL.createObjectURL(blob);
+        await audioContext.audioWorklet.addModule(url);
+        URL.revokeObjectURL(url);
+      }
 
       const source = audioContext.createMediaStreamSource(rawStream);
-      const noiseGate = new AudioWorkletNode(audioContext, 'rnnoise-processor');
+      const filterNode = new AudioWorkletNode(audioContext, processorName);
       const destination = audioContext.createMediaStreamDestination();
 
-      source.connect(noiseGate);
-      noiseGate.connect(destination);
+      source.connect(filterNode);
+      filterNode.connect(destination);
 
       const tracks = [
         ...rawStream.getVideoTracks(),
