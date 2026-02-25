@@ -113,8 +113,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const toggleAudioBtn = document.getElementById('toggle-audio');
   const toggleVideoBtn = document.getElementById('toggle-video');
+  const toggleNoiseCallBtn = document.getElementById('toggle-noise-call');
   const toggleScreenBtn = document.getElementById('toggle-screen');
   const leaveBtn = document.getElementById('leave-btn');
+  const callCameraSelect = document.getElementById('call-camera-select');
+  const callMicSelect = document.getElementById('call-mic-select');
   const localAudioIndicator = document.getElementById('local-audio-indicator');
 
   // ===== Состояние =====
@@ -330,7 +333,10 @@ document.addEventListener('DOMContentLoaded', () => {
   async function restartPreview() {
     if (localStream) localStream.getTracks().forEach(t => t.stop());
     await initPreview();
-    // if we are already in a call, update peers with new tracks
+    // if we are already in a call, update local video element and peers
+    if (!roomContainer.classList.contains('hidden')) {
+      localVideo.srcObject = processedStream || localStream;
+    }
     applyStreamToPeers();
   }
 
@@ -420,6 +426,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     toggleVideoBtn.classList.toggle('active', videoEnabled);
     toggleVideoBtn.querySelector('i').className = videoEnabled ? 'fas fa-video' : 'fas fa-video-slash';
+
+    toggleNoiseCallBtn.classList.toggle('active', noiseEnabled);
+
+    // populate in-call device selectors from already-enumerated preview lists
+    callCameraSelect.innerHTML = cameraSelect.innerHTML;
+    callCameraSelect.value = cameraSelect.value;
+    callMicSelect.innerHTML = micSelect.innerHTML;
+    callMicSelect.value = micSelect.value;
 
     connectSocket();
     startTimer();
@@ -719,6 +733,25 @@ document.addEventListener('DOMContentLoaded', () => {
     toggleVideoBtn.querySelector('i').className = videoEnabled ? 'fas fa-video' : 'fas fa-video-slash';
     updateVideoPlaceholder(localWrapper, username, !videoEnabled);
     socket.emit('toggle-media', { type: 'video', enabled: videoEnabled });
+  });
+
+  toggleNoiseCallBtn.addEventListener('click', async () => {
+    noiseEnabled = !noiseEnabled;
+    toggleNoiseCallBtn.classList.toggle('active', noiseEnabled);
+    if (previewToggleNoise) previewToggleNoise.classList.toggle('active', noiseEnabled);
+    await restartPreview();
+  });
+
+  callCameraSelect.addEventListener('change', async () => {
+    currentCameraId = callCameraSelect.value;
+    cameraSelect.value = currentCameraId;
+    await restartPreview();
+  });
+
+  callMicSelect.addEventListener('change', async () => {
+    currentMicId = callMicSelect.value;
+    micSelect.value = currentMicId;
+    await restartPreview();
   });
 
   // ===== ДЕМОНСТРАЦИЯ ЭКРАНА =====
